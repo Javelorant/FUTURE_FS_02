@@ -625,3 +625,32 @@ body {
 .save-button:hover {
   background-color: #1d4ed8;
 }
+
+/* Loading and Error States */
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 3rem 0;
+  color: #64748b;
+  font-size: 1.125rem;
+}
+
+.error-state p {
+  margin-bottom: 1rem;
+  color: #dc2626;
+}
+
+.retry-button {
+  padding: 0.5rem 1.5rem;
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 1rem;
+}
+
+.retry-button:hover {
+  background-color: #1d4ed8;
+}

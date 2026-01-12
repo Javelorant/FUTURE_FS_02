@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Briefcase, Activity, Plus, Search, Edit2, Trash2, DollarSign, Mail, Phone, Calendar, Tag } from 'lucide-react';
+import { contactAPI, dealAPI, activityAPI } from './services/api';
 import './index.css';
 
 const MiniCRM = () => {
@@ -11,38 +12,32 @@ const MiniCRM = () => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState('');
   const [editingItem, setEditingItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const contactsData = localStorage.getItem('crm-contacts');
-      const dealsData = localStorage.getItem('crm-deals');
-      const activitiesData = localStorage.getItem('crm-activities');
-
-      if (contactsData) setContacts(JSON.parse(contactsData));
-      if (dealsData) setDeals(JSON.parse(dealsData));
-      if (activitiesData) setActivities(JSON.parse(activitiesData));
-    } catch (error) {
-      console.log('No existing data found, starting fresh');
+      const [contactsData, dealsData, activitiesData] = await Promise.all([
+        contactAPI.getAll(),
+        dealAPI.getAll(),
+        activityAPI.getAll()
+      ]);
+      
+      setContacts(contactsData);
+      setDeals(dealsData);
+      setActivities(activitiesData);
+    } catch (err) {
+      setError('Failed to load data. Please make sure the server is running.');
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const saveContacts = (newContacts) => {
-    setContacts(newContacts);
-    localStorage.setItem('crm-contacts', JSON.stringify(newContacts));
-  };
-
-  const saveDeals = (newDeals) => {
-    setDeals(newDeals);
-    localStorage.setItem('crm-deals', JSON.stringify(newDeals));
-  };
-
-  const saveActivities = (newActivities) => {
-    setActivities(newActivities);
-    localStorage.setItem('crm-activities', JSON.stringify(newActivities));
   };
 
   const openModal = (type, item = null) => {
@@ -56,19 +51,82 @@ const MiniCRM = () => {
     setEditingItem(null);
   };
 
-  const deleteContact = (id) => {
-    const newContacts = contacts.filter(c => c.id !== id);
-    saveContacts(newContacts);
+  const handleSaveContact = async (contactData) => {
+    try {
+      if (editingItem) {
+        const updated = await contactAPI.update(editingItem._id, contactData);
+        setContacts(contacts.map(c => c._id === updated._id ? updated : c));
+      } else {
+        const created = await contactAPI.create(contactData);
+        setContacts([created, ...contacts]);
+      }
+      closeModal();
+    } catch (err) {
+      alert('Failed to save contact: ' + err.message);
+    }
   };
 
-  const deleteDeal = (id) => {
-    const newDeals = deals.filter(d => d.id !== id);
-    saveDeals(newDeals);
+  const handleSaveDeal = async (dealData) => {
+    try {
+      if (editingItem) {
+        const updated = await dealAPI.update(editingItem._id, dealData);
+        setDeals(deals.map(d => d._id === updated._id ? updated : d));
+      } else {
+        const created = await dealAPI.create(dealData);
+        setDeals([created, ...deals]);
+      }
+      closeModal();
+    } catch (err) {
+      alert('Failed to save deal: ' + err.message);
+    }
   };
 
-  const deleteActivity = (id) => {
-    const newActivities = activities.filter(a => a.id !== id);
-    saveActivities(newActivities);
+  const handleSaveActivity = async (activityData) => {
+    try {
+      if (editingItem) {
+        const updated = await activityAPI.update(editingItem._id, activityData);
+        setActivities(activities.map(a => a._id === updated._id ? updated : a));
+      } else {
+        const created = await activityAPI.create(activityData);
+        setActivities([created, ...activities]);
+      }
+      closeModal();
+    } catch (err) {
+      alert('Failed to save activity: ' + err.message);
+    }
+  };
+
+  const deleteContact = async (id) => {
+    if (window.confirm('Are you sure you want to delete this contact?')) {
+      try {
+        await contactAPI.delete(id);
+        setContacts(contacts.filter(c => c._id !== id));
+      } catch (err) {
+        alert('Failed to delete contact: ' + err.message);
+      }
+    }
+  };
+
+  const deleteDeal = async (id) => {
+    if (window.confirm('Are you sure you want to delete this deal?')) {
+      try {
+        await dealAPI.delete(id);
+        setDeals(deals.filter(d => d._id !== id));
+      } catch (err) {
+        alert('Failed to delete deal: ' + err.message);
+      }
+    }
+  };
+
+  const deleteActivity = async (id) => {
+    if (window.confirm('Are you sure you want to delete this activity?')) {
+      try {
+        await activityAPI.delete(id);
+        setActivities(activities.filter(a => a._id !== id));
+      } catch (err) {
+        alert('Failed to delete activity: ' + err.message);
+      }
+    }
   };
 
   const filteredContacts = contacts.filter(c => 
@@ -86,6 +144,29 @@ const MiniCRM = () => {
     a.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (loading) {
+    return (
+      <div className="app-container">
+        <div className="max-w-container">
+          <div className="loading-state">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="app-container">
+        <div className="max-w-container">
+          <div className="error-state">
+            <p>{error}</p>
+            <button onClick={loadData} className="retry-button">Retry</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -184,22 +265,12 @@ const MiniCRM = () => {
           onClose={closeModal}
           onSave={(item) => {
             if (modalType === 'contacts') {
-              const newContacts = editingItem
-                ? contacts.map(c => c.id === item.id ? item : c)
-                : [...contacts, { ...item, id: Date.now().toString() }];
-              saveContacts(newContacts);
+              handleSaveContact(item);
             } else if (modalType === 'deals') {
-              const newDeals = editingItem
-                ? deals.map(d => d.id === item.id ? item : d)
-                : [...deals, { ...item, id: Date.now().toString() }];
-              saveDeals(newDeals);
+              handleSaveDeal(item);
             } else if (modalType === 'activities') {
-              const newActivities = editingItem
-                ? activities.map(a => a.id === item.id ? item : a)
-                : [...activities, { ...item, id: Date.now().toString() }];
-              saveActivities(newActivities);
+              handleSaveActivity(item);
             }
-            closeModal();
           }}
         />
       )}
@@ -215,14 +286,14 @@ const ContactsList = ({ contacts, onEdit, onDelete }) => {
   return (
     <div className="contacts-grid">
       {contacts.map(contact => (
-        <div key={contact.id} className="contact-card">
+        <div key={contact._id} className="contact-card">
           <div className="contact-header">
             <h3 className="contact-name">{contact.name}</h3>
             <div className="contact-actions">
               <button onClick={() => onEdit(contact)} className="icon-button edit">
                 <Edit2 size={16} />
               </button>
-              <button onClick={() => onDelete(contact.id)} className="icon-button delete">
+              <button onClick={() => onDelete(contact._id)} className="icon-button delete">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -264,7 +335,7 @@ const DealsList = ({ deals, onEdit, onDelete }) => {
   return (
     <div className="deals-list">
       {deals.map(deal => (
-        <div key={deal.id} className="deal-card">
+        <div key={deal._id} className="deal-card">
           <div className="deal-content">
             <div className="deal-info">
               <div className="deal-title-row">
@@ -289,7 +360,7 @@ const DealsList = ({ deals, onEdit, onDelete }) => {
               <button onClick={() => onEdit(deal)} className="icon-button edit">
                 <Edit2 size={16} />
               </button>
-              <button onClick={() => onDelete(deal.id)} className="icon-button delete">
+              <button onClick={() => onDelete(deal._id)} className="icon-button delete">
                 <Trash2 size={16} />
               </button>
             </div>
@@ -319,7 +390,7 @@ const ActivitiesList = ({ activities, onEdit, onDelete }) => {
   return (
     <div className="activities-list">
       {activities.map(activity => (
-        <div key={activity.id} className="activity-card">
+        <div key={activity._id} className="activity-card">
           <div className="activity-content">
             <div className="activity-info">
               <div className="activity-title-row">
@@ -344,7 +415,7 @@ const ActivitiesList = ({ activities, onEdit, onDelete }) => {
               <button onClick={() => onEdit(activity)} className="icon-button edit">
                 <Edit2 size={16} />
               </button>
-              <button onClick={() => onDelete(activity.id)} className="icon-button delete">
+              <button onClick={() => onDelete(activity._id)} className="icon-button delete">
                 <Trash2 size={16} />
               </button>
             </div>
