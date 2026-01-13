@@ -1,9 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Briefcase, Activity, Plus, Search, Edit2, Trash2, DollarSign, Mail, Phone, Calendar, Tag } from 'lucide-react';
+import React, { useState, useEffect, useContext } from 'react';
+import { Users, Briefcase, Activity, Plus, Search, Edit2, Trash2, DollarSign, Mail, Phone, Calendar, Tag, LogOut } from 'lucide-react';
 import { contactAPI, dealAPI, activityAPI } from './services/api';
+import { AuthContext } from './auth/AuthContext';
+import Login from './auth/Login';
+import Register from './auth/Register';
 import './index.css';
 
 const MiniCRM = () => {
+  const { user, logout } = useContext(AuthContext);
+  const [showRegister, setShowRegister] = useState(false);
   const [activeTab, setActiveTab] = useState('contacts');
   const [contacts, setContacts] = useState([]);
   const [deals, setDeals] = useState([]);
@@ -16,8 +21,12 @@ const MiniCRM = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [user]);
 
   const loadData = async () => {
     setLoading(true);
@@ -145,6 +154,40 @@ const MiniCRM = () => {
     a.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Show login/register if not authenticated
+  if (!user) {
+    return (
+      <div className="app-container">
+        <div className="max-w-container">
+          <div className="auth-container">
+            <h1 className="auth-title">Mini CRM</h1>
+            {showRegister ? (
+              <div>
+                <Register />
+                <p className="auth-switch">
+                  Already have an account?{' '}
+                  <button onClick={() => setShowRegister(false)} className="link-button">
+                    Login here
+                  </button>
+                </p>
+              </div>
+            ) : (
+              <div>
+                <Login />
+                <p className="auth-switch">
+                  Don't have an account?{' '}
+                  <button onClick={() => setShowRegister(true)} className="link-button">
+                    Register here
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="app-container">
@@ -172,8 +215,17 @@ const MiniCRM = () => {
     <div className="app-container">
       <div className="max-w-container">
         <div className="header">
-          <h1>Mini CRM</h1>
-          <p>Manage your contacts, deals, and activities</p>
+          <div>
+            <h1>Mini CRM</h1>
+            <p>Manage your contacts, deals, and activities</p>
+          </div>
+          <div className="user-info">
+            <span className="welcome-text">Welcome, {user.name}!</span>
+            <button onClick={logout} className="logout-button">
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="stats-grid">
